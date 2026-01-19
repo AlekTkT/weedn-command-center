@@ -16,7 +16,7 @@ import AgentPromptPanel from '@/components/AgentPromptPanel'
 import AlertsBanner from '@/components/AlertsBanner'
 import SuppliersPanel from '@/components/SuppliersPanel'
 import AgentTasksPanel from '@/components/AgentTasksPanel'
-import { Truck, ExternalLink, Wrench } from 'lucide-react'
+import { Truck, ExternalLink, Wrench, Store, Globe, Plus } from 'lucide-react'
 
 // Types pour les données du dashboard
 interface DashboardData {
@@ -33,6 +33,7 @@ interface DashboardData {
       today: number;
       yesterday: number;
       last7Days: number;
+      last30Days?: number;
       total: number;
       recent: any[];
     };
@@ -48,6 +49,44 @@ interface DashboardData {
       newLast30Days: number;
     };
   };
+  generatedAt: string;
+}
+
+// Types pour les métriques combinées (E-commerce + Boutique)
+interface CombinedMetrics {
+  combined: {
+    today: { revenue: number; orders: number };
+    yesterday: { revenue: number; orders: number };
+    week: { revenue: number; orders: number };
+    month: { revenue: number; orders: number };
+    avgOrderValue: number;
+  };
+  shopify: {
+    today: { revenue: number; orders: number };
+    yesterday: { revenue: number; orders: number };
+    week: { revenue: number; orders: number };
+    month: { revenue: number; orders: number };
+    recentOrders: any[];
+  };
+  store: {
+    today: { revenue: number; transactions: number };
+    yesterday: { revenue: number; transactions: number };
+    week: { revenue: number; transactions: number };
+    month: { revenue: number; transactions: number };
+    recentSales: any[];
+  };
+  split: {
+    shopifyPercent: number;
+    storePercent: number;
+  };
+  objective: {
+    target: number;
+    current: number;
+    progress: number;
+    remaining: number;
+  };
+  products: any;
+  customers: any;
   generatedAt: string;
 }
 
@@ -78,20 +117,38 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'agents' | 'claude' | 'suppliers' | 'analytics' | 'config'>('dashboard')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [combinedData, setCombinedData] = useState<CombinedMetrics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [showAddSale, setShowAddSale] = useState(false)
+  const [newSaleAmount, setNewSaleAmount] = useState('')
+  const [newSaleMethod, setNewSaleMethod] = useState('CB')
 
-  // Fetch des données réelles
+  // Fetch des données réelles (combinées)
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await fetch('/api/data')
-      if (!response.ok) throw new Error('Erreur de chargement')
-      const result = await response.json()
-      if (result.success && result.data) {
-        setDashboardData(result.data)
+
+      // Récupérer données combinées (Shopify + Boutique)
+      const [dataRes, combinedRes] = await Promise.all([
+        fetch('/api/data'),
+        fetch('/api/combined-metrics')
+      ])
+
+      if (dataRes.ok) {
+        const result = await dataRes.json()
+        if (result.success && result.data) {
+          setDashboardData(result.data)
+        }
+      }
+
+      if (combinedRes.ok) {
+        const combined = await combinedRes.json()
+        if (combined.success && combined.data) {
+          setCombinedData(combined.data)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -100,6 +157,31 @@ export default function Dashboard() {
       setIsLoading(false)
     }
   }, [])
+
+  // Ajouter une vente boutique
+  const addStoreSale = async () => {
+    if (!newSaleAmount || parseFloat(newSaleAmount) <= 0) return
+
+    try {
+      const res = await fetch('/api/store-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          total: parseFloat(newSaleAmount),
+          payment_method: newSaleMethod,
+          created_by: 'manual'
+        })
+      })
+
+      if (res.ok) {
+        setNewSaleAmount('')
+        setShowAddSale(false)
+        fetchData() // Rafraîchir les données
+      }
+    } catch (err) {
+      console.error('Erreur ajout vente:', err)
+    }
+  }
 
   // Charger les données au montage et toutes les 60 secondes
   useEffect(() => {
@@ -113,21 +195,29 @@ export default function Dashboard() {
     fetchData().finally(() => setIsRefreshing(false))
   }
 
-  // Calculs des métriques
-  const todayRevenue = dashboardData?.shopify?.revenue?.today || '0'
-  const todayOrders = dashboardData?.shopify?.orders?.today || 0
-  const avgOrderValue = dashboardData?.shopify?.revenue?.avgOrderValue || '0'
-  const totalCustomers = dashboardData?.shopify?.customers?.total || 0
+  // Calculs des métriques COMBINÉES (E-commerce + Boutique)
+  const todayRevenue = combinedData?.combined?.today?.revenue || parseFloat(dashboardData?.shopify?.revenue?.today || '0')
+  const todayOrders = combinedData?.combined?.today?.orders || dashboardData?.shopify?.orders?.today || 0
+  const avgOrderValue = combinedData?.combined?.avgOrderValue || parseFloat(dashboardData?.shopify?.revenue?.avgOrderValue || '0')
+  const totalCustomers = combinedData?.customers?.total || dashboardData?.shopify?.customers?.total || 0
+
+  // Détails par canal
+  const shopifyToday = combinedData?.shopify?.today?.revenue || parseFloat(dashboardData?.shopify?.revenue?.today || '0')
+  const storeToday = combinedData?.store?.today?.revenue || 0
 
   // Comparaisons avec hier
-  const yesterdayRevenue = parseFloat(dashboardData?.shopify?.revenue?.yesterday || '0')
+  const yesterdayRevenue = combinedData?.combined?.yesterday?.revenue || parseFloat(dashboardData?.shopify?.revenue?.yesterday || '0')
   const revenueChange = yesterdayRevenue > 0
-    ? Math.round(((parseFloat(todayRevenue) - yesterdayRevenue) / yesterdayRevenue) * 100)
+    ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
     : 0
-  const yesterdayOrders = dashboardData?.shopify?.orders?.yesterday || 0
+  const yesterdayOrders = combinedData?.combined?.yesterday?.orders || dashboardData?.shopify?.orders?.yesterday || 0
   const ordersChange = todayOrders - yesterdayOrders
 
   const agentsOnline = agents.filter(a => a.status === 'online').length
+
+  // Split e-commerce vs boutique
+  const splitShopify = combinedData?.split?.shopifyPercent || 100
+  const splitStore = combinedData?.split?.storePercent || 0
 
   return (
     <div className="min-h-screen">
@@ -193,9 +283,9 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Objectif principal - CA 30 jours réel */}
+            {/* Objectif principal - CA 30 jours COMBINÉ */}
             <ObjectiveTracker
-              currentCA={parseFloat(dashboardData?.shopify?.revenue?.last30Days || '45000')}
+              currentCA={combinedData?.objective?.current || parseFloat(dashboardData?.shopify?.revenue?.last30Days || '45000')}
               targetCA={63000}
               startDate="18 Jan"
               endDate="18 Avr"
@@ -203,17 +293,17 @@ export default function Dashboard() {
               totalDays={90}
             />
 
-            {/* KPIs rapides - Données réelles Shopify */}
+            {/* KPIs COMBINÉS - E-commerce + Boutique */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <MetricCard
-                title="CA Aujourd'hui"
-                value={isLoading ? '...' : `€${parseFloat(todayRevenue).toFixed(0)}`}
+                title="CA Total Aujourd'hui"
+                value={isLoading ? '...' : `€${todayRevenue.toFixed(0)}`}
                 trend={revenueChange >= 0 ? 'up' : 'down'}
                 trendValue={revenueChange >= 0 ? `+${revenueChange}%` : `${revenueChange}%`}
                 icon={isLoading ? <Loader2 size={18} className="animate-spin" /> : <ShoppingCart size={18} />}
               />
               <MetricCard
-                title="Commandes"
+                title="Transactions"
                 value={isLoading ? '...' : todayOrders.toString()}
                 trend={ordersChange >= 0 ? 'up' : 'down'}
                 trendValue={ordersChange >= 0 ? `+${ordersChange}` : ordersChange.toString()}
@@ -221,7 +311,7 @@ export default function Dashboard() {
               />
               <MetricCard
                 title="Panier Moyen"
-                value={isLoading ? '...' : `€${parseFloat(avgOrderValue).toFixed(0)}`}
+                value={isLoading ? '...' : `€${avgOrderValue.toFixed(0)}`}
                 trend="stable"
                 trendValue="global"
                 icon={<TrendingUp size={18} />}
@@ -235,10 +325,109 @@ export default function Dashboard() {
               />
             </div>
 
+            {/* Répartition E-commerce vs Boutique */}
+            <div className="glass rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  💰 Répartition CA Aujourd'hui
+                </h3>
+                <button
+                  onClick={() => setShowAddSale(!showAddSale)}
+                  className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-xs hover:bg-emerald-500/30 transition-colors flex items-center gap-1"
+                >
+                  <Plus size={14} />
+                  Ajouter vente boutique
+                </button>
+              </div>
+
+              {/* Formulaire ajout vente */}
+              {showAddSale && (
+                <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-emerald-500/30">
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-400 block mb-1">Montant (€)</label>
+                      <input
+                        type="number"
+                        value={newSaleAmount}
+                        onChange={(e) => setNewSaleAmount(e.target.value)}
+                        placeholder="ex: 45.00"
+                        className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Paiement</label>
+                      <select
+                        value={newSaleMethod}
+                        onChange={(e) => setNewSaleMethod(e.target.value)}
+                        className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-emerald-500 focus:outline-none"
+                      >
+                        <option value="CB">CB</option>
+                        <option value="Espèces">Espèces</option>
+                        <option value="Lydia">Lydia</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={addStoreSale}
+                      disabled={!newSaleAmount}
+                      className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* E-commerce (Shopify) */}
+                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Globe className="text-blue-400" size={18} />
+                    <span className="text-blue-400 font-medium">E-commerce</span>
+                    <span className="text-xs text-gray-500">weedn.fr</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white mb-1">
+                    €{shopifyToday.toFixed(0)}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {combinedData?.shopify?.today?.orders || dashboardData?.shopify?.orders?.today || 0} commandes web
+                  </div>
+                  <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all"
+                      style={{ width: `${splitShopify}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-blue-400 mt-1">{splitShopify}% du CA total</div>
+                </div>
+
+                {/* Boutique (Incwo) */}
+                <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Store className="text-orange-400" size={18} />
+                    <span className="text-orange-400 font-medium">Boutique</span>
+                    <span className="text-xs text-gray-500">4 Rue Tiquetonne</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white mb-1">
+                    €{storeToday.toFixed(0)}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {combinedData?.store?.today?.transactions || 0} ventes en magasin
+                  </div>
+                  <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-orange-500 transition-all"
+                      style={{ width: `${splitStore}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-orange-400 mt-1">{splitStore}% du CA total</div>
+                </div>
+              </div>
+            </div>
+
             {/* Indicateur de dernière mise à jour */}
-            {dashboardData?.generatedAt && (
+            {(dashboardData?.generatedAt || combinedData?.generatedAt) && (
               <div className="text-xs text-gray-500 text-right">
-                Dernière MAJ: {new Date(dashboardData.generatedAt).toLocaleTimeString('fr-FR')}
+                Dernière MAJ: {new Date(combinedData?.generatedAt || dashboardData?.generatedAt || '').toLocaleTimeString('fr-FR')}
                 {error && <span className="text-red-400 ml-2">⚠️ {error}</span>}
               </div>
             )}
@@ -385,7 +574,7 @@ export default function Dashboard() {
               <div className="glass rounded-xl p-4">
                 <div className="text-xs text-gray-400 mb-1">Panier moyen</div>
                 <div className="text-2xl font-bold text-white">
-                  {isLoading ? '...' : `€${parseFloat(avgOrderValue).toFixed(0)}`}
+                  {isLoading ? '...' : `€${avgOrderValue.toFixed(0)}`}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">Cible: €50+</div>
               </div>
