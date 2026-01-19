@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { ENV } from '@/config';
+import { getSupabaseClient } from '@/lib/supabase';
 
-// Client Supabase
-const supabase = createClient(
-  ENV.SUPABASE_URL || '',
-  ENV.SUPABASE_ANON_KEY || ''
-);
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export interface StoreSale {
   id?: string;
@@ -32,6 +29,14 @@ export interface StoreSalesMetrics {
 
 // GET: Récupérer les ventes boutique et métriques
 export async function GET(request: NextRequest) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return NextResponse.json(
+      { error: 'Supabase non configuré' },
+      { status: 503 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const period = searchParams.get('period') || 'all';
 
@@ -109,6 +114,14 @@ export async function GET(request: NextRequest) {
 
 // POST: Ajouter une vente boutique
 export async function POST(request: NextRequest) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return NextResponse.json(
+      { error: 'Supabase non configuré' },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { total, subtotal, tax, items_count, payment_method, notes, incwo_receipt_id, created_by } = body;

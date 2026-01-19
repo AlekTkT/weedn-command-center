@@ -59,15 +59,21 @@ export interface WeedConfig {
   };
 }
 
-// Chemin vers les fichiers data du projet weedn
+// Chemin vers les fichiers data du projet weedn (optionnel, pour dev local)
 const DATA_PATH = process.env.WEEDN_DATA_PATH || '/Users/alektkt/Documents/weedn-project/data';
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 
 // Cache pour éviter de relire les fichiers
 let cachedCredentials: any = null;
 let cachedContacts: any = null;
 
-// Charger les credentials depuis le fichier externe
+// Charger les credentials depuis le fichier externe (uniquement en dev local)
 export function loadCredentials(): any {
+  // Sur Vercel, ne pas essayer de lire les fichiers locaux
+  if (IS_VERCEL) {
+    return null;
+  }
+
   if (cachedCredentials) return cachedCredentials;
 
   try {
@@ -76,13 +82,19 @@ export function loadCredentials(): any {
     cachedCredentials = JSON.parse(data);
     return cachedCredentials;
   } catch (error) {
-    console.error('Erreur chargement credentials:', error);
+    // Silencieux en prod, log en dev
+    if (!IS_VERCEL) console.error('Erreur chargement credentials:', error);
     return null;
   }
 }
 
-// Charger les contacts depuis le fichier externe
+// Charger les contacts depuis le fichier externe (uniquement en dev local)
 export function loadContacts(): any {
+  // Sur Vercel, ne pas essayer de lire les fichiers locaux
+  if (IS_VERCEL) {
+    return null;
+  }
+
   if (cachedContacts) return cachedContacts;
 
   try {
@@ -91,7 +103,8 @@ export function loadContacts(): any {
     cachedContacts = JSON.parse(data);
     return cachedContacts;
   } catch (error) {
-    console.error('Erreur chargement contacts:', error);
+    // Silencieux en prod, log en dev
+    if (!IS_VERCEL) console.error('Erreur chargement contacts:', error);
     return null;
   }
 }

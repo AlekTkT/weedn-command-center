@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFullMetrics } from '@/services/shopify';
+import { getIncwoMetrics } from '@/services/incwo';
 import {
   generateAllTasks,
   generateAgentTasks,
@@ -10,6 +11,9 @@ import {
   MetapromptContext
 } from '@/services/metaprompts';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET: Récupérer les tâches générées et l'historique
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -17,20 +21,48 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type') || 'all'; // 'generated' | 'history' | 'all'
 
   try {
-    // Récupérer les données Shopify pour le contexte
-    const shopifyData = await getFullMetrics();
+    // Récupérer les données Shopify ET Incwo en parallèle
+    const [shopifyData, incwoData] = await Promise.all([
+      getFullMetrics(),
+      getIncwoMetrics(),
+    ]);
+
+    // Calculer les totaux combinés
+    const shopifyMonthRevenue = parseFloat(shopifyData.revenue.last30Days) || 0;
+    const storeMonthRevenue = incwoData.month.revenue || 0;
+    const totalMonthRevenue = shopifyMonthRevenue + storeMonthRevenue;
 
     // Calculer la progression vers l'objectif +40% CA
-    const currentCA = parseFloat(shopifyData.revenue.last30Days) || 45000;
     const targetCA = 63000; // 45000 * 1.4
-    const objectiveProgress = Math.min(100, Math.round((currentCA / targetCA) * 100));
+    const objectiveProgress = Math.min(100, Math.round((totalMonthRevenue / targetCA) * 100));
+
+    // Split online vs boutique
+    const splitOnline = totalMonthRevenue > 0 ? Math.round((shopifyMonthRevenue / totalMonthRevenue) * 100) : 100;
+    const splitStore = totalMonthRevenue > 0 ? Math.round((storeMonthRevenue / totalMonthRevenue) * 100) : 0;
+
+    // Panier moyen boutique
+    const storeAvgTicket = incwoData.today.transactions > 0
+      ? Math.round(incwoData.today.revenue / incwoData.today.transactions)
+      : incwoData.month.transactions > 0
+        ? Math.round(incwoData.month.revenue / incwoData.month.transactions)
+        : 0;
+
+    // Calculer évolution boutique vs J-7
+    const j7Revenue = incwoData.lastWeekSameDay?.revenue || 0;
+    const todayStoreRevenue = incwoData.today.revenue || 0;
+    let evolutionPercent = 0;
+    if (j7Revenue > 0) {
+      evolutionPercent = Math.round(((todayStoreRevenue - j7Revenue) / j7Revenue) * 100);
+    } else if (todayStoreRevenue > 0) {
+      evolutionPercent = 100;
+    }
 
     const context: MetapromptContext = {
       revenue: {
         today: parseFloat(shopifyData.revenue.today) || 0,
         yesterday: parseFloat(shopifyData.revenue.yesterday) || 0,
         last7Days: parseFloat(shopifyData.revenue.last7Days) || 0,
-        last30Days: currentCA,
+        last30Days: shopifyMonthRevenue,
         avgOrderValue: parseFloat(shopifyData.revenue.avgOrderValue) || 0,
       },
       orders: {
@@ -47,6 +79,24 @@ export async function GET(request: NextRequest) {
         newLast30Days: shopifyData.customers.newLast30Days || 0,
       },
       objectiveProgress,
+      // Données boutique Incwo
+      store: {
+        today: { revenue: incwoData.today.revenue, transactions: incwoData.today.transactions },
+        yesterday: { revenue: incwoData.yesterday.revenue, transactions: incwoData.yesterday.transactions },
+        lastWeekSameDay: { revenue: j7Revenue, transactions: incwoData.lastWeekSameDay?.transactions || 0 },
+        week: { revenue: incwoData.week.revenue, transactions: incwoData.week.transactions },
+        month: { revenue: storeMonthRevenue, transactions: incwoData.month.transactions },
+        evolution: { percent: Math.abs(evolutionPercent), isPositive: evolutionPercent >= 0 },
+        avgTicket: storeAvgTicket,
+      },
+      // Totaux combinés
+      combined: {
+        todayRevenue: (parseFloat(shopifyData.revenue.today) || 0) + incwoData.today.revenue,
+        todayTransactions: (shopifyData.orders.today || 0) + incwoData.today.transactions,
+        monthRevenue: totalMonthRevenue,
+        splitOnline,
+        splitStore,
+      },
     };
 
     let generatedTasks: AgentTask[] = [];

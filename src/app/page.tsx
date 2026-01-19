@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   ShoppingCart, Users, TrendingUp, Package,
-  Mail, BarChart3, Settings, RefreshCw,
+  BarChart3, Settings, RefreshCw,
   Bot, Zap, Target, MessageSquare, Loader2
 } from 'lucide-react'
 import AgentCard from '@/components/AgentCard'
@@ -16,7 +16,15 @@ import AgentPromptPanel from '@/components/AgentPromptPanel'
 import AlertsBanner from '@/components/AlertsBanner'
 import SuppliersPanel from '@/components/SuppliersPanel'
 import AgentTasksPanel from '@/components/AgentTasksPanel'
-import { Truck, ExternalLink, Wrench, Store, Globe, Plus } from 'lucide-react'
+import InvoicesPanel from '@/components/InvoicesPanel'
+import AnalyticsPanel from '@/components/AnalyticsPanel'
+import ShipmentTracker from '@/components/ShipmentTracker'
+import EmailComposer from '@/components/EmailComposer'
+import SalesAdvisorPanel from '@/components/SalesAdvisorPanel'
+import SocialMediaPanel from '@/components/SocialMediaPanel'
+import SchedulePanel from '@/components/SchedulePanel'
+import StoreHistoryPanel from '@/components/StoreHistoryPanel'
+import { Truck, ExternalLink, Wrench, Store, Globe, Plus, FileText, PackageCheck, Mail, Calendar, Instagram, History } from 'lucide-react'
 
 // Types pour les données du dashboard
 interface DashboardData {
@@ -57,9 +65,11 @@ interface CombinedMetrics {
   combined: {
     today: { revenue: number; orders: number };
     yesterday: { revenue: number; orders: number };
+    lastWeekSameDay: { revenue: number; orders: number };
     week: { revenue: number; orders: number };
     month: { revenue: number; orders: number };
     avgOrderValue: number;
+    evolution: { percent: number; isPositive: boolean };
   };
   shopify: {
     today: { revenue: number; orders: number };
@@ -71,9 +81,11 @@ interface CombinedMetrics {
   store: {
     today: { revenue: number; transactions: number };
     yesterday: { revenue: number; transactions: number };
+    lastWeekSameDay: { revenue: number; transactions: number };
     week: { revenue: number; transactions: number };
     month: { revenue: number; transactions: number };
     recentSales: any[];
+    evolution: { percent: number; isPositive: boolean };
   };
   split: {
     shopifyPercent: number;
@@ -114,7 +126,7 @@ const recentActivities = [
 ]
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'agents' | 'claude' | 'suppliers' | 'analytics' | 'config'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'agents' | 'claude' | 'suppliers' | 'invoices' | 'shipments' | 'emails' | 'social' | 'schedule' | 'store-history' | 'analytics' | 'config'>('dashboard')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [combinedData, setCombinedData] = useState<CombinedMetrics | null>(null)
@@ -259,6 +271,12 @@ export default function Dashboard() {
               { id: 'agents', label: 'Agents', icon: Bot },
               { id: 'claude', label: 'Claude', icon: MessageSquare },
               { id: 'suppliers', label: 'Fournisseurs', icon: Truck },
+              { id: 'invoices', label: 'Factures', icon: FileText },
+              { id: 'shipments', label: 'Colis', icon: PackageCheck },
+              { id: 'emails', label: 'Emails', icon: Mail },
+              { id: 'social', label: 'Social', icon: Instagram },
+              { id: 'schedule', label: 'Planning', icon: Calendar },
+              { id: 'store-history', label: 'Boutique', icon: Store },
               { id: 'analytics', label: 'Analytics', icon: TrendingUp },
               { id: 'config', label: 'Config', icon: Settings },
             ].map(({ id, label, icon: Icon }) => (
@@ -407,10 +425,22 @@ export default function Dashboard() {
                     <span className="text-orange-400 font-medium">Boutique</span>
                     <span className="text-xs text-gray-500">4 Rue Tiquetonne</span>
                   </div>
-                  <div className="text-2xl font-bold text-white mb-1">
-                    €{storeToday.toFixed(0)}
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-2xl font-bold text-white">
+                      €{storeToday.toFixed(0)}
+                    </div>
+                    {/* Évolution vs J-7 */}
+                    {combinedData?.store?.evolution && (
+                      <span className={`text-sm font-medium ${
+                        combinedData.store.evolution.isPositive ? 'text-emerald-400' : 'text-red-400'
+                      }`}>
+                        {combinedData.store.evolution.isPositive ? '+' : '-'}
+                        {combinedData.store.evolution.percent}%
+                        <span className="text-xs text-gray-500 ml-1">vs J-7</span>
+                      </span>
+                    )}
                   </div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-gray-400 mt-1">
                     {combinedData?.store?.today?.transactions || 0} ventes en magasin
                   </div>
                   <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -446,12 +476,19 @@ export default function Dashboard() {
               <ActivityFeed activities={recentActivities} />
             </div>
 
-            {/* Actions rapides */}
-            <div className="glass rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="text-yellow-400" size={18} />
-                <h3 className="font-semibold text-white">Actions rapides</h3>
+            {/* Grille Dashboard : Conseils vente + Actions rapides */}
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Conseils vente boutique - Petit panneau */}
+              <div className="md:col-span-1">
+                <SalesAdvisorPanel compact />
               </div>
+
+              {/* Actions rapides */}
+              <div className="md:col-span-2 glass rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Zap className="text-yellow-400" size={18} />
+                  <h3 className="font-semibold text-white">Actions rapides</h3>
+                </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { icon: '📧', label: 'Lancer campagne email', color: 'blue', action: 'email' },
@@ -476,6 +513,7 @@ export default function Dashboard() {
                     <div className="text-sm text-white">{item.label}</div>
                   </motion.button>
                 ))}
+              </div>
               </div>
             </div>
           </div>
@@ -551,131 +589,121 @@ export default function Dashboard() {
           </div>
         )}
 
-        {activeTab === 'analytics' && (
+        {activeTab === 'invoices' && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-white">📊 Analytics & KPIs</h2>
-
-            {/* KPIs principaux */}
-            <div className="grid md:grid-cols-4 gap-4">
-              <div className="glass rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1">CA 30 jours</div>
-                <div className="text-2xl font-bold text-white">
-                  {isLoading ? '...' : `€${parseFloat(dashboardData?.shopify?.revenue?.last30Days || '0').toLocaleString('fr-FR')}`}
-                </div>
-                <div className="text-xs text-emerald-400 mt-1">Objectif: €63,000</div>
-              </div>
-              <div className="glass rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1">Commandes 7j</div>
-                <div className="text-2xl font-bold text-white">
-                  {isLoading ? '...' : dashboardData?.shopify?.orders?.last7Days || 0}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Total: {dashboardData?.shopify?.orders?.total || 0}</div>
-              </div>
-              <div className="glass rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1">Panier moyen</div>
-                <div className="text-2xl font-bold text-white">
-                  {isLoading ? '...' : `€${avgOrderValue.toFixed(0)}`}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Cible: €50+</div>
-              </div>
-              <div className="glass rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1">Clients actifs</div>
-                <div className="text-2xl font-bold text-white">
-                  {isLoading ? '...' : totalCustomers}
-                </div>
-                <div className="text-xs text-emerald-400 mt-1">+{dashboardData?.shopify?.customers?.newLast30Days || 0} ce mois</div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">🧾 Factures Fournisseurs</h2>
+              <div className="text-sm text-gray-400">
+                Factures détectées automatiquement et liées aux fournisseurs
               </div>
             </div>
+            <InvoicesPanel />
+          </div>
+        )}
 
-            {/* Données sources */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="glass rounded-xl p-4">
-                <h3 className="font-medium text-white mb-3 flex items-center gap-2">
-                  <span className="text-lg">🛍️</span>
-                  Shopify Analytics
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Produits actifs</span>
-                    <span className="text-white">{dashboardData?.shopify?.products?.active || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Stock faible</span>
-                    <span className="text-orange-400">{dashboardData?.shopify?.products?.lowStock || 0} produits</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Ruptures</span>
-                    <span className="text-red-400">{dashboardData?.shopify?.products?.outOfStock || 0} produits</span>
-                  </div>
-                </div>
-                <a
-                  href="https://admin.shopify.com/store/f24081-64/analytics"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline"
-                >
-                  Voir sur Shopify <ExternalLink size={12} />
-                </a>
-              </div>
+        {activeTab === 'shipments' && (
+          <ShipmentTracker />
+        )}
 
-              <div className="glass rounded-xl p-4">
-                <h3 className="font-medium text-white mb-3 flex items-center gap-2">
-                  <span className="text-lg">📈</span>
-                  Google Analytics 4
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Property ID</span>
-                    <span className="text-white">450777440</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Stream</span>
-                    <span className="text-white">weedn.fr</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Statut</span>
-                    <span className="text-emerald-400">Connecté</span>
-                  </div>
-                </div>
-                <a
-                  href="https://analytics.google.com/analytics/web/#/p450777440"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline"
-                >
-                  Voir sur GA4 <ExternalLink size={12} />
-                </a>
+        {activeTab === 'emails' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">📧 Agent Email - Commandes & Support</h2>
+              <div className="text-sm text-gray-400">
+                Rédaction automatique avec négociation intelligente
               </div>
             </div>
+            <EmailComposer />
+          </div>
+        )}
 
-            {/* Dernières commandes */}
-            <div className="glass rounded-xl p-4">
-              <h3 className="font-medium text-white mb-3">Dernières commandes</h3>
-              <div className="space-y-2">
-                {(dashboardData?.shopify?.orders?.recent || []).slice(0, 5).map((order: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-800/50">
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-400">#{order.number}</span>
-                      <span className="text-white">{order.total}€</span>
+        {activeTab === 'social' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">📱 Réseaux Sociaux</h2>
+              <div className="text-sm text-gray-400">
+                Suivi Instagram & TikTok
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <SocialMediaPanel />
+              <div className="space-y-4">
+                <div className="glass rounded-xl p-4">
+                  <h3 className="font-semibold text-white mb-3">Prochaines publications</h3>
+                  <div className="space-y-2">
+                    <div className="p-2 bg-pink-500/10 rounded-lg border border-pink-500/20">
+                      <div className="flex items-center gap-2">
+                        <Instagram size={14} className="text-pink-400" />
+                        <span className="text-sm text-white">Post produit CBD</span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">Aujourd'hui 18h00</div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-xs ${
-                        order.financialStatus === 'paid'
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-yellow-500/20 text-yellow-400'
-                      }`}>
-                        {order.financialStatus}
-                      </span>
-                      <span className="text-xs text-gray-500">{order.customerEmail || 'Sans email'}</span>
+                    <div className="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                        </svg>
+                        <span className="text-sm text-white">Reel "Bienfaits CBD"</span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">Demain 19h00</div>
                     </div>
                   </div>
-                ))}
-                {(!dashboardData?.shopify?.orders?.recent || dashboardData.shopify.orders.recent.length === 0) && (
-                  <p className="text-gray-500 text-sm text-center py-4">Aucune commande récente</p>
-                )}
+                </div>
+                <div className="glass rounded-xl p-4">
+                  <h3 className="font-semibold text-white mb-3">Conseils Agent Contenu</h3>
+                  <ul className="space-y-2 text-sm text-gray-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400">→</span>
+                      <span>Les Reels performent 3x mieux que les posts classiques</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400">→</span>
+                      <span>Publier entre 18h-20h pour un engagement max</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400">→</span>
+                      <span>Répondre aux commentaires dans l'heure</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'schedule' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">📅 Planning & Calendrier</h2>
+              <div className="text-sm text-gray-400">
+                Événements générés par les agents IA
+              </div>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="md:col-span-2">
+                <SchedulePanel />
+              </div>
+              <div className="space-y-4">
+                <SalesAdvisorPanel />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'store-history' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">🏪 Historique Boutique</h2>
+              <div className="text-sm text-gray-400">
+                Données Incwo • 4 Rue Tiquetonne, 75002 Paris
+              </div>
+            </div>
+            <StoreHistoryPanel />
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsPanel />
         )}
 
         {activeTab === 'config' && (

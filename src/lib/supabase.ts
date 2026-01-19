@@ -1,9 +1,33 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Fonction pour obtenir le client Supabase de manière sécurisée (runtime)
+export function getSupabaseClient(): SupabaseClient | null {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase URL ou Key non configurée')
+    return null
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
+
+// Client Supabase lazy (pour compatibilité)
+// Note: Peut être null au build time, utiliser getSupabaseClient() pour les routes API
+let _supabase: SupabaseClient | null = null
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    if (!_supabase) {
+      _supabase = getSupabaseClient()
+    }
+    if (!_supabase) {
+      throw new Error('Supabase non configuré')
+    }
+    return (_supabase as any)[prop]
+  }
+})
 
 // Types pour la base de données Weedn
 export interface Agent {

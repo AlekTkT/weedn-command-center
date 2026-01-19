@@ -12,6 +12,17 @@ export interface AgentTask {
   completedAt?: string;
   result?: string;
   category: string;
+  // Nouvelles propriétés pour l'exécution
+  actionType?: 'api' | 'prompt' | 'redirect' | 'automation';
+  actionPayload?: {
+    endpoint?: string;
+    method?: string;
+    body?: any;
+    prompt?: string;
+    redirectUrl?: string;
+    automationId?: string;
+  };
+  recommendations?: string[]; // Préconisations de l'agent
 }
 
 export interface MetapromptContext {
@@ -36,6 +47,26 @@ export interface MetapromptContext {
     newLast30Days: number;
   };
   objectiveProgress: number; // % vers objectif +40% CA
+  // Données Incwo boutique physique
+  store?: {
+    today: { revenue: number; transactions: number };
+    yesterday: { revenue: number; transactions: number };
+    lastWeekSameDay: { revenue: number; transactions: number };
+    week: { revenue: number; transactions: number };
+    month: { revenue: number; transactions: number };
+    evolution: { percent: number; isPositive: boolean };
+    avgTicket: number;
+    bestDayOfWeek?: string;
+    topProducts?: Array<{ name: string; quantity: number; revenue: number }>;
+  };
+  // Totaux combinés (web + boutique)
+  combined?: {
+    todayRevenue: number;
+    todayTransactions: number;
+    monthRevenue: number;
+    splitOnline: number; // % CA online
+    splitStore: number; // % CA boutique
+  };
 }
 
 // Templates de metaprompts par agent
@@ -55,7 +86,19 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
       priority: ctx.revenue.today < ctx.revenue.yesterday ? 'high' : 'medium',
       status: 'pending',
       createdAt: new Date().toISOString(),
-      category: 'Analyse'
+      category: 'Analyse',
+      actionType: 'prompt',
+      actionPayload: {
+        prompt: `Analyse les ventes du jour (${ctx.revenue.today}€) vs hier (${ctx.revenue.yesterday}€). Identifie les produits best-sellers et propose 3 actions concrètes pour augmenter le CA demain.`
+      },
+      recommendations: [
+        `CA actuel: ${ctx.revenue.today}€ (${revenueGrowth}% vs hier)`,
+        'Vérifier les produits les plus vendus sur Shopify',
+        'Analyser le trafic source (organique vs payant)',
+        ctx.revenue.today < ctx.revenue.yesterday
+          ? 'Envoyer une notification promo flash sur Instagram'
+          : 'Maintenir la dynamique avec un post témoignage client'
+      ]
     });
 
     // Si panier moyen faible
@@ -68,8 +111,75 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
         priority: 'high',
         status: 'pending',
         createdAt: new Date().toISOString(),
-        category: 'Optimisation'
+        category: 'Optimisation',
+        actionType: 'prompt',
+        actionPayload: {
+          prompt: `Le panier moyen est de ${ctx.revenue.avgOrderValue}€ (objectif: 50€+). Propose 3 bundles de produits CBD complémentaires et une stratégie de cross-sell pour la boutique Weedn.`
+        },
+        recommendations: [
+          `Panier moyen actuel: ${ctx.revenue.avgOrderValue}€ (cible: 50€+)`,
+          'Créer un bundle "Découverte CBD" (fleurs + huile + bonbons)',
+          'Ajouter des suggestions "Souvent achetés ensemble" sur Shopify',
+          'Proposer -10% dès 60€ d\'achat',
+          'Mettre en avant les packs sur la homepage'
+        ]
       });
+    }
+
+    // === TÂCHES BOUTIQUE PHYSIQUE (données Incwo) ===
+    if (ctx.store) {
+      const storeEvolution = ctx.store.evolution;
+      const storeToday = ctx.store.today;
+
+      // Analyse performance boutique vs J-7
+      tasks.push({
+        id: `ventes-store-${Date.now()}-1`,
+        agentId: 'agent-ventes',
+        title: '🏪 Analyse boutique vs J-7',
+        description: `Boutique: ${storeToday.revenue}€ (${storeEvolution.isPositive ? '+' : '-'}${storeEvolution.percent}% vs semaine dernière)`,
+        priority: storeEvolution.percent > 20 ? 'low' : storeEvolution.percent < -10 ? 'high' : 'medium',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        category: 'Boutique',
+        actionType: 'prompt',
+        actionPayload: {
+          prompt: `La boutique a fait ${storeToday.revenue}€ aujourd'hui (${storeEvolution.isPositive ? '+' : '-'}${storeEvolution.percent}% vs J-7). Analyse cette performance et propose des actions pour améliorer le CA en magasin.`
+        },
+        recommendations: [
+          `CA boutique: ${storeToday.revenue}€ (${storeToday.transactions} ventes)`,
+          `Évolution vs J-7: ${storeEvolution.isPositive ? '+' : '-'}${storeEvolution.percent}%`,
+          `Panier moyen: ${ctx.store.avgTicket}€`,
+          storeEvolution.percent < 0
+            ? 'Proposer dégustation fleurs aux passants'
+            : 'Maintenir la dynamique avec un jeu concours en boutique',
+          'Vérifier affichage vitrine et signalétique'
+        ]
+      });
+
+      // Si boutique sous-performe vs online
+      if (ctx.combined && ctx.combined.splitStore < 30) {
+        tasks.push({
+          id: `ventes-store-${Date.now()}-2`,
+          agentId: 'agent-ventes',
+          title: '⚠️ Boutique sous-représentée',
+          description: `Seulement ${ctx.combined.splitStore}% du CA vient de la boutique. Objectif: 40%+`,
+          priority: 'high',
+          status: 'needs_attention',
+          createdAt: new Date().toISOString(),
+          category: 'Boutique',
+          actionType: 'prompt',
+          actionPayload: {
+            prompt: `La boutique représente seulement ${ctx.combined.splitStore}% du CA total (${ctx.store.month.revenue}€/mois). Comment augmenter le trafic en magasin et les ventes physiques?`
+          },
+          recommendations: [
+            `Split actuel: ${ctx.combined.splitOnline}% online / ${ctx.combined.splitStore}% boutique`,
+            'Lancer une promo "Retrait en boutique = -5%"',
+            'Distribuer des flyers dans le quartier',
+            'Organiser un événement CBD dégustation',
+            'Ajouter "Click & Collect" sur Shopify'
+          ]
+        });
+      }
     }
 
     return tasks;
@@ -77,6 +187,7 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
 
   'agent-inventaire': (ctx) => {
     const tasks: AgentTask[] = [];
+    const lowStockNames = ctx.products.lowStockItems.slice(0, 3).map(p => p.title);
 
     // Alertes stock faible
     if (ctx.products.lowStock > 0) {
@@ -88,7 +199,17 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
         priority: 'high',
         status: 'needs_attention',
         createdAt: new Date().toISOString(),
-        category: 'Alerte Stock'
+        category: 'Alerte Stock',
+        actionType: 'prompt',
+        actionPayload: {
+          prompt: `Les produits suivants sont en stock faible: ${lowStockNames.join(', ')}. Génère un email de commande fournisseur avec les quantités recommandées.`
+        },
+        recommendations: [
+          `${ctx.products.lowStock} produits en stock critique`,
+          ...ctx.products.lowStockItems.slice(0, 3).map(p => `Commander ${p.title} (reste: ${p.inventory} unités)`),
+          'Contacter Baboo pour validation commande fournisseur',
+          'Prévoir 2-3 semaines de délai livraison'
+        ]
       });
     }
 
@@ -102,7 +223,18 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
         priority: 'high',
         status: 'needs_attention',
         createdAt: new Date().toISOString(),
-        category: 'Rupture'
+        category: 'Rupture',
+        actionType: 'automation',
+        actionPayload: {
+          automationId: 'stock-alert-supplier'
+        },
+        recommendations: [
+          `${ctx.products.outOfStock} produits en rupture totale`,
+          'Masquer temporairement sur Shopify pour éviter frustration client',
+          'Envoyer commande express au fournisseur',
+          'Proposer un produit alternatif aux clients intéressés',
+          'Notifier l\'équipe boutique (WhatsApp)'
+        ]
       });
     }
 
@@ -121,7 +253,18 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
       priority: 'medium',
       status: 'pending',
       createdAt: new Date().toISOString(),
-      category: 'SEO Local'
+      category: 'SEO Local',
+      actionType: 'prompt',
+      actionPayload: {
+        prompt: 'Analyse le positionnement SEO de weedn.fr sur les mots-clés "CBD Paris", "fleur CBD Paris", "boutique CBD 75002". Propose 5 optimisations concrètes.'
+      },
+      recommendations: [
+        'Vérifier le ranking Google sur "CBD Paris" (cible: top 5)',
+        'Optimiser la fiche Google Business avec photos récentes',
+        'Ajouter des avis clients récents (objectif: 50+ avis)',
+        'Créer une page "CBD Paris 2ème arrondissement"',
+        'Publier 2 articles blog /semaine avec mots-clés locaux'
+      ]
     });
 
     // Si objectif loin
@@ -134,7 +277,18 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
         priority: 'high',
         status: 'pending',
         createdAt: new Date().toISOString(),
-        category: 'Croissance'
+        category: 'Croissance',
+        actionType: 'prompt',
+        actionPayload: {
+          prompt: `L'objectif CA est à ${ctx.objectiveProgress}%. Propose un plan SEO accéléré pour augmenter le trafic organique de 30% en 30 jours.`
+        },
+        recommendations: [
+          `Objectif CA: ${ctx.objectiveProgress}% (besoin d'accélérer)`,
+          'Créer 5 nouvelles pages catégories optimisées',
+          'Rédiger 10 articles blog ciblés long-tail',
+          'Obtenir 5 backlinks de sites CBD/wellness',
+          'Optimiser les meta descriptions de tous les produits'
+        ]
       });
     }
 
@@ -152,7 +306,18 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
       priority: 'medium',
       status: 'pending',
       createdAt: new Date().toISOString(),
-      category: 'Social Media'
+      category: 'Social Media',
+      actionType: 'prompt',
+      actionPayload: {
+        prompt: 'Crée un post Instagram engageant pour Weedn. Thème: les bienfaits du CBD pour le sommeil. Inclus: caption, hashtags, et suggestions visuelles.'
+      },
+      recommendations: [
+        'Publier entre 18h-20h (meilleur engagement)',
+        'Utiliser un carrousel (3-5 slides) pour plus de reach',
+        'Hashtags recommandés: #CBD #CBDParis #WellnessParis #SommeilNaturel',
+        'Ajouter un CTA vers le site (lien en bio)',
+        'Répondre aux commentaires dans l\'heure'
+      ]
     });
 
     // Si nouveaux clients
@@ -165,7 +330,18 @@ const METAPROMPT_TEMPLATES: Record<string, (ctx: MetapromptContext) => AgentTask
         priority: 'medium',
         status: 'pending',
         createdAt: new Date().toISOString(),
-        category: 'Email'
+        category: 'Email',
+        actionType: 'prompt',
+        actionPayload: {
+          prompt: `Rédige une séquence email de bienvenue en 3 emails pour les ${ctx.customers.newLast30Days} nouveaux clients Weedn. Ton: chaleureux et expert CBD.`
+        },
+        recommendations: [
+          `${ctx.customers.newLast30Days} nouveaux clients à accueillir`,
+          'Email 1 (J+0): Bienvenue + code -10% première commande',
+          'Email 2 (J+3): Guide "Bien choisir son CBD"',
+          'Email 3 (J+7): Témoignages clients + best-sellers',
+          'Personnaliser avec le prénom (Klaviyo)'
+        ]
       });
     }
 
