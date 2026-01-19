@@ -51,7 +51,6 @@ export default function AlertsBanner() {
 
   useEffect(() => {
     fetchAlerts();
-    // Vérifier les alertes toutes les 5 minutes
     const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [dismissedIds]);
@@ -69,7 +68,6 @@ export default function AlertsBanner() {
   const criticalAlerts = activeAlerts.filter(a => a.severity === 'critical');
   const warningAlerts = activeAlerts.filter(a => a.severity === 'warning');
 
-  // Ne rien afficher si pas d'alertes
   if (isLoading || activeAlerts.length === 0) {
     return null;
   }
@@ -78,52 +76,47 @@ export default function AlertsBanner() {
 
   return (
     <motion.div
-      initial={{ y: -100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className={`fixed top-0 left-0 right-0 z-[100] ${
-        hasCritical ? 'bg-red-600' : 'bg-yellow-500'
-      }`}
+      initial={{ x: 100, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      className="fixed top-20 right-4 z-[100] max-w-sm"
     >
-      {/* Barre principale */}
+      {/* Notification compacte */}
       <div
-        className="max-w-7xl mx-auto px-4 py-2 cursor-pointer"
+        className={`rounded-xl shadow-lg cursor-pointer backdrop-blur-sm ${
+          hasCritical
+            ? 'bg-red-500/90 border border-red-400/50'
+            : 'bg-yellow-500/80 border border-yellow-400/50'
+        } ${isExpanded ? 'rounded-b-none' : ''}`}
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <motion.div
-              animate={{ scale: hasCritical ? [1, 1.2, 1] : 1 }}
-              transition={{ repeat: hasCritical ? Infinity : 0, duration: 1 }}
-            >
-              {hasCritical ? (
-                <AlertTriangle className="text-white" size={20} />
-              ) : (
-                <Bell className="text-black" size={20} />
-              )}
-            </motion.div>
+        <div className="px-4 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <motion.div
+                animate={{ scale: hasCritical ? [1, 1.1, 1] : 1 }}
+                transition={{ repeat: hasCritical ? Infinity : 0, duration: 2 }}
+              >
+                {hasCritical ? (
+                  <AlertTriangle className="text-white" size={16} />
+                ) : (
+                  <Bell className="text-black" size={16} />
+                )}
+              </motion.div>
 
-            <span className={`font-medium ${hasCritical ? 'text-white' : 'text-black'}`}>
-              {hasCritical
-                ? `🚨 ${criticalAlerts.length} alerte(s) critique(s)`
-                : `⚠️ ${warningAlerts.length} avertissement(s)`}
-            </span>
-
-            {activeAlerts.length > 0 && (
-              <span className={`text-sm ${hasCritical ? 'text-red-200' : 'text-yellow-800'}`}>
-                {activeAlerts[0].title}
+              <span className={`font-medium text-sm ${hasCritical ? 'text-white' : 'text-black'}`}>
+                {hasCritical
+                  ? `${criticalAlerts.length} alerte(s)`
+                  : `${warningAlerts.length} avertissement(s)`}
               </span>
-            )}
-          </div>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <span className={`text-sm ${hasCritical ? 'text-red-200' : 'text-yellow-800'}`}>
-              {activeAlerts.length} alerte(s) active(s)
-            </span>
-            {isExpanded ? (
-              <ChevronUp className={hasCritical ? 'text-white' : 'text-black'} size={18} />
-            ) : (
-              <ChevronDown className={hasCritical ? 'text-white' : 'text-black'} size={18} />
-            )}
+            <div className="flex items-center gap-1">
+              {isExpanded ? (
+                <ChevronUp className={hasCritical ? 'text-white' : 'text-black'} size={16} />
+              ) : (
+                <ChevronDown className={hasCritical ? 'text-white' : 'text-black'} size={16} />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -135,9 +128,9 @@ export default function AlertsBanner() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-gray-900 border-t border-white/20 max-h-80 overflow-y-auto"
+            className="bg-gray-900/95 backdrop-blur-sm rounded-b-xl max-h-60 overflow-y-auto border border-t-0 border-gray-700"
           >
-            <div className="max-w-7xl mx-auto px-4 py-3 space-y-2">
+            <div className="px-3 py-2 space-y-2">
               {activeAlerts.map((alert) => (
                 <motion.div
                   key={alert.id}
@@ -167,14 +160,11 @@ export default function AlertsBanner() {
                       </span>
                       <span className="text-xs text-gray-400">{alert.category}</span>
                     </div>
-                    <h4 className="font-medium text-white mt-1">{alert.title}</h4>
-                    <p className="text-sm text-gray-300">{alert.message}</p>
+                    <h4 className="font-medium text-white mt-1 text-sm">{alert.title}</h4>
+                    <p className="text-xs text-gray-300">{alert.message}</p>
                     {alert.details && (
                       <p className="text-xs text-gray-400 mt-1">{alert.details}</p>
                     )}
-                    <span className="text-xs text-gray-500 mt-1 block">
-                      {new Date(alert.createdAt).toLocaleString('fr-FR')}
-                    </span>
                   </div>
                   <button
                     onClick={(e) => {
@@ -183,13 +173,13 @@ export default function AlertsBanner() {
                     }}
                     className="p-1 hover:bg-white/10 rounded"
                   >
-                    <X className="text-gray-400" size={16} />
+                    <X className="text-gray-400" size={14} />
                   </button>
                 </motion.div>
               ))}
 
               {activeAlerts.length === 0 && (
-                <div className="text-center py-4 text-gray-400">
+                <div className="text-center py-4 text-gray-400 text-sm">
                   ✅ Aucune alerte active
                 </div>
               )}

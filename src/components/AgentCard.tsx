@@ -1,16 +1,18 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { MessageSquare } from 'lucide-react'
 
 interface AgentCardProps {
   id: string
   name: string
   icon: string
   status: 'online' | 'idle' | 'offline' | 'working'
-  tasksCompleted: number
-  tasksTotal: number
-  level: number
-  xp: number
+  color: string
+  tasksCompleted?: number
+  tasksTotal?: number
+  level?: number
+  xp?: number
   currentTask?: string
   onClick?: () => void
 }
@@ -23,36 +25,36 @@ const statusColors = {
 }
 
 const statusLabels = {
-  online: 'En ligne',
+  online: 'Actif',
   working: 'En cours...',
   idle: 'En attente',
-  offline: 'Hors ligne'
+  offline: 'Inactif'
 }
 
 export default function AgentCard({
   name,
   icon,
   status,
-  tasksCompleted,
-  tasksTotal,
-  level,
-  xp,
+  color,
   currentTask,
   onClick
 }: AgentCardProps) {
-  const progress = tasksTotal > 0 ? (tasksCompleted / tasksTotal) * 100 : 0
-  const xpProgress = (xp / 1000) * 100
-
   return (
     <motion.div
       whileHover={{ scale: 1.02, y: -2 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className="glass rounded-xl p-4 cursor-pointer hover:border-emerald-500/50 transition-all"
+      style={{ borderColor: `${color}30` }}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="text-3xl">{icon}</div>
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+            style={{ backgroundColor: `${color}20` }}
+          >
+            {icon}
+          </div>
           <div>
             <h3 className="font-semibold text-white">{name}</h3>
             <div className="flex items-center gap-2 text-sm">
@@ -60,10 +62,6 @@ export default function AgentCard({
               <span className="text-gray-400">{statusLabels[status]}</span>
             </div>
           </div>
-        </div>
-        <div className="text-right">
-          <div className="text-xs text-gray-400">Niveau</div>
-          <div className="text-lg font-bold text-emerald-400">{level}</div>
         </div>
       </div>
 
@@ -74,37 +72,17 @@ export default function AgentCard({
         </div>
       )}
 
-      <div className="space-y-2">
-        <div>
-          <div className="flex justify-between text-xs mb-1">
-            <span className="text-gray-400">Tâches</span>
-            <span className="text-white">{tasksCompleted}/{tasksTotal}</span>
-          </div>
-          <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5 }}
-              className="h-full bg-emerald-500 rounded-full"
-            />
-          </div>
-        </div>
-
-        <div>
-          <div className="flex justify-between text-xs mb-1">
-            <span className="text-gray-400">XP</span>
-            <span className="text-white">{xp}/1000</span>
-          </div>
-          <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="h-full bg-purple-500 rounded-full"
-            />
-          </div>
-        </div>
-      </div>
+      {/* Action button */}
+      <button
+        className="w-full py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+        style={{
+          backgroundColor: `${color}20`,
+          color: color
+        }}
+      >
+        <MessageSquare size={14} />
+        Communiquer
+      </button>
     </motion.div>
   )
 }

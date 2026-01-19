@@ -107,6 +107,11 @@ export default function AgentPromptPanel({ agents, onClose }: AgentPromptPanelPr
       'Analyse le score Lighthouse actuel',
       'Propose des améliorations UX pour la page produit',
     ],
+    'agent-factures': [
+      'Quelles factures sont en attente de traitement ?',
+      'Analyse les dépenses fournisseurs du mois',
+      'Quels fournisseurs ont les meilleures conditions ?',
+    ],
   };
 
   return (
