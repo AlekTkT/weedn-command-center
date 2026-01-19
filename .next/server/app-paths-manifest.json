@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/actions/shopify/product/route": "app/api/actions/shopify/product/route.js",
+  "/api/claude/route": "app/api/claude/route.js",
+  "/api/data/route": "app/api/data/route.js",
+  "/api/actions/klaviyo/campaign/route": "app/api/actions/klaviyo/campaign/route.js",
+  "/page": "app/page.js",
+  "/api/alerts/route": "app/api/alerts/route.js",
+  "/api/klaviyo/data/route": "app/api/klaviyo/data/route.js",
+  "/api/shopify/orders/route": "app/api/shopify/orders/route.js",
+  "/api/shopify/products/route": "app/api/shopify/products/route.js"
+}
