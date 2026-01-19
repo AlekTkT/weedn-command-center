@@ -14,6 +14,8 @@ import ActivityFeed from '@/components/ActivityFeed'
 import ObjectiveTracker from '@/components/ObjectiveTracker'
 import AgentPromptPanel from '@/components/AgentPromptPanel'
 import AlertsBanner from '@/components/AlertsBanner'
+import SuppliersPanel from '@/components/SuppliersPanel'
+import { Truck } from 'lucide-react'
 
 // Données des agents (depuis tiles.json)
 const agents = [
@@ -38,7 +40,7 @@ const recentActivities = [
 ]
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'agents' | 'claude' | 'analytics' | 'config'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'agents' | 'claude' | 'suppliers' | 'analytics' | 'config'>('dashboard')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -87,6 +89,7 @@ export default function Dashboard() {
               { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
               { id: 'agents', label: 'Agents', icon: Bot },
               { id: 'claude', label: 'Claude', icon: MessageSquare },
+              { id: 'suppliers', label: 'Fournisseurs', icon: Truck },
               { id: 'analytics', label: 'Analytics', icon: TrendingUp },
               { id: 'config', label: 'Config', icon: Settings },
             ].map(({ id, label, icon: Icon }) => (
@@ -223,6 +226,18 @@ export default function Dashboard() {
               </div>
             </div>
             <AgentPromptPanel agents={agents} />
+          </div>
+        )}
+
+        {activeTab === 'suppliers' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">🚚 Fournisseurs</h2>
+              <div className="text-sm text-gray-400">
+                Gérez vos fournisseurs et leurs produits phares
+              </div>
+            </div>
+            <SuppliersPanel />
           </div>
         )}
 
